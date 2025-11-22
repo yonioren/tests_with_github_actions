@@ -1,0 +1,324 @@
+---
+# k8s-bootstrap.yml
+# Assumes Debian/Ubuntu servers and an 'master' and 'worker' inventory groups.
+# Run with: ansible-playbook -i inventory k8s-bootstrap.yml -b
+
+- name: Common prep for all nodes (swap, modules, sysctl, containerd, kube packages)
+  hosts: all
+  become: yes
+  vars:
+    kubernetes_gpg_key_path: "/etc/apt/keyrings/kubernetes-apt-keyring.gpg"
+    kubernetes_latest_release_url: "https://api.github.com/repos/kubernetes/kubernetes/releases/latest"
+    kubernetes_apt_repo: "deb [signed-by={{ kubernetes_gpg_key_path }}] https://pkgs.k8s.io/core:/stable:/@@KUBE_VER@@/deb/ /"
+    kubernetes_gpg_url: "https://pkgs.k8s.io/core:/stable:/@@KUBE_VER@@/deb/Release.key"
+
+  tasks:
+
+    - name: Disable swap immediately
+      ansible.builtin.command: swapoff -a
+      changed_when: false
+
+    - name: Remove swap entries from /etc/fstab (if any)
+      ansible.builtin.replace:
+        path: /etc/fstab
+        regexp: '^\s*.*\bswap\b.*$'
+        replace: ''
+        backup: yes
+
+    - name: Ensure modules-load file for kubernetes exists
+      ansible.builtin.copy:
+        dest: /etc/modules-load.d/k8s.conf
+        content: |
+          overlay
+          br_netfilter
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Load kernel modules overlay and br_netfilter now
+      ansible.builtin.shell: |
+        modprobe overlay || true
+        modprobe br_netfilter || true
+      args:
+        warn: false
+
+    - name: Create persistent sysctl for k8s networking
+      ansible.builtin.copy:
+        dest: /etc/sysctl.d/99-kubernetes.conf
+        content: |
+          net.bridge.bridge-nf-call-iptables  = 1
+          net.bridge.bridge-nf-call-ip6tables = 1
+          net.ipv4.ip_forward                 = 1
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Reload sysctl settings
+      ansible.builtin.command: sysctl --system
+
+    - name: Install required apt packages for installs
+      ansible.builtin.apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - containerd
+        state: present
+        update_cache: yes
+
+    - name: Ensure /etc/containerd exists
+      ansible.builtin.file:
+        path: /etc/containerd
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Generate default containerd config to /etc/containerd/config.toml
+      ansible.builtin.command: |
+        bash -c "containerd config default > /etc/containerd/config.toml"
+      args:
+        creates: /etc/containerd/config.toml
+
+    - name: Ensure SystemdCgroup = true in containerd config
+      ansible.builtin.replace:
+        path: /etc/containerd/config.toml
+        regexp: 'SystemdCgroup\s*=\s*false'
+        replace: 'SystemdCgroup = true'
+
+    - name: Restart and enable containerd
+      ansible.builtin.service:
+        name: containerd
+        state: restarted
+        enabled: yes
+
+    - name: Get latest release version from GitHub
+      ansible.builtin.uri:
+        url: "{{ kubernetes_latest_release_url }}"
+        method: GET
+        return_content: true
+      register: k8s_latest_release_info
+
+    - name: Add Kubernetes apt GPG key
+      ansible.builtin.command: >
+        bash -c "curl -fsSL {{ kubernetes_gpg_url | replace('@@KUBE_VER@@',k8s_latest_release_info.json.tag_name | regex_replace('\.\d+$',''))}} | gpg --dearmor --yes -o {{ kubernetes_gpg_key_path }}"
+      args:
+        creates: "{{ kubernetes_gpg_key_path }}"
+
+    - name: Add Kubernetes apt repository
+      ansible.builtin.apt_repository:
+        repo: "{{ kubernetes_apt_repo | replace('@@KUBE_VER@@',k8s_latest_release_info.json.tag_name | regex_replace('\\.\\d+$',''))}}"
+        state: present
+        filename: kubernetes
+
+    - name: Update apt cache after adding kubernetes repo
+      ansible.builtin.apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install kubeadm and kubelet
+      ansible.builtin.apt:
+        name:
+          - kubelet
+          - kubeadm
+        state: present
+        allow_unauthenticated: no
+        force: yes
+      register: kube_install
+
+    - name: Hold kubelet and kubeadm to current versions
+      ansible.builtin.command: apt-mark hold kubelet kubeadm
+      changed_when: false
+
+# Install kubectl only on masters (the user requested kubectl installed in all servers in master group)
+- name: Install kubectl on master nodes
+  hosts: master
+  become: yes
+  tasks:
+    - name: Install kubectl
+      ansible.builtin.apt:
+        name: kubectl
+        state: present
+        update_cache: yes
+
+    - name: Hold kubectl
+      ansible.builtin.command: apt-mark hold kubectl
+      changed_when: false
+
+# Initialize the cluster on master if not present, apply Calico, create join token
+- name: Initialize Kubernetes on master (if not already initialized) and apply network
+  hosts: master
+  become: yes
+  vars:
+    kubeconfig_src: /etc/kubernetes/admin.conf
+    pod_network_cidr: "10.244.0.0/16"
+    calico_manifest_url: "https://raw.githubusercontent.com/projectcalico/calico/v3.26.1/manifests/calico.yaml"
+  tasks:
+
+    - name: Check if cluster already initialized (admin.conf present)
+      ansible.builtin.stat:
+        path: "{{ kubeconfig_src }}"
+      register: kube_admin_conf
+
+    - name: Run kubeadm init (only if not initialized)
+      ansible.builtin.command: >
+        kubeadm init --pod-network-cidr={{ pod_network_cidr }}
+      register: kubeadm_init
+      when: not kube_admin_conf.stat.exists
+
+    - name: Create .kube for ubuntu user and copy admin.conf
+      ansible.builtin.file:
+        path: /home/ubuntu/.kube
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: '0700'
+
+    - name: Copy admin.conf to ubuntu user's kube config (if exists)
+      ansible.builtin.copy:
+        remote_src: true
+        src: /etc/kubernetes/admin.conf
+        dest: /home/ubuntu/.kube/config
+        owner: ubuntu
+        group: ubuntu
+        mode: '0600'
+      when: kube_admin_conf.stat.exists or (kubeadm_init is defined and kubeadm_init.rc == 0)
+
+    - name: Ensure /root/.kube exists and copy admin.conf for root
+      ansible.builtin.file:
+        path: /root/.kube
+        state: directory
+        owner: root
+        group: root
+        mode: '0700'
+
+    - name: Copy admin.conf to root kube config
+      ansible.builtin.copy:
+        remote_src: true
+        src: /etc/kubernetes/admin.conf
+        dest: /root/.kube/config
+        owner: root
+        group: root
+        mode: '0600'
+      when: kube_admin_conf.stat.exists or (kubeadm_init is defined and kubeadm_init.rc == 0)
+
+    - name: Wait for kube-apiserver to be ready (simple wait)
+      ansible.builtin.wait_for:
+        path: /etc/kubernetes/admin.conf
+        search_regex: '.*'
+        timeout: 60
+
+    - name: Apply Calico network (only when admin.conf exists)
+      ansible.builtin.shell: |
+        kubectl apply -f {{ calico_manifest_url }} --kubeconfig=/etc/kubernetes/admin.conf
+      register: calico_apply
+      changed_when: "'created' in calico_apply.stdout or 'configured' in calico_apply.stdout or calico_apply.rc == 0"
+      failed_when: calico_apply.rc != 0 and 'already' not in calico_apply.stdout
+      when: kube_admin_conf.stat.exists or (kubeadm_init is defined and kubeadm_init.rc == 0)
+
+    - name: Create kubeadm join command and register it (run once)
+      ansible.builtin.command: kubeadm token create --print-join-command
+      register: join_cmd
+      run_once: true
+      changed_when: false
+      when: kube_admin_conf.stat.exists or (kubeadm_init is defined and kubeadm_init.rc == 0)
+
+    - name: Set fact on master host with join command
+      ansible.builtin.set_fact:
+        kube_join_command: "{{ join_cmd.stdout }}"
+      when: join_cmd is defined
+
+# Export NFS share and create path (run on all masters? user said "create path /data/nfs and export it to 10.1.0.0/16")
+- name: Setup NFS export and create path (run on all hosts or restrict to a specific nfs server)
+  hosts: master
+  become: yes
+  vars:
+    nfs_export_network: "10.1.0.0/16"
+    nfs_export_path: "/data/nfs"
+  tasks:
+    - name: Ensure nfs export directory exists
+      ansible.builtin.file:
+        path: "{{ nfs_export_path }}"
+        state: directory
+        owner: root
+        group: root
+        mode: '0777'
+
+    - name: Install nfs server packages
+      ansible.builtin.apt:
+        name: nfs-kernel-server
+        state: present
+        update_cache: no
+
+    - name: Ensure export line present in /etc/exports (idempotent)
+      lineinfile:
+        path: /etc/exports
+        regexp: '^{{ nfs_export_path | regex_escape }}\s+{{ nfs_export_network | regex_escape }}\('
+        line: "{{ nfs_export_path }} {{ nfs_export_network }}(rw,sync,no_subtree_check)"
+        create: yes
+        state: present
+        backup: yes
+      become: yes
+
+    - name: Reload NFS exports
+      ansible.builtin.command: exportfs -ra
+
+    - name: Ensure nfs service running
+      ansible.builtin.service:
+        name: nfs-kernel-server
+        state: started
+        enabled: yes
+
+- name: Make workers NFS capable
+  hosts: workers
+  become: yes
+  tasks:
+    - name: Install nfs common packages
+      ansible.builtin.apt:
+        name: nfs-common
+        state: present
+        update_cache: no
+
+# Execute join command on worker nodes (uses fact from master host)
+- name: Join workers to the cluster
+  hosts: workers
+  become: yes
+  tasks:
+    - name: Ensure we have a join command from the master
+      ansible.builtin.assert:
+        that:
+          - hostvars[groups['master'][0]].kube_join_command is defined
+        fail_msg: "Master did not produce a kubeadm join command. Make sure the master init stage ran successfully."
+
+    - name: Check if worker already joined
+      stat:
+        path: /etc/kubernetes/kubelet.conf
+      register: kubelet_conf
+
+    - name: Run kubeadm join on worker
+      ansible.builtin.command: "{{ hostvars[groups['master'][0]].kube_join_command }} --ignore-preflight-errors=all"
+      register: join_out
+      when: not kubelet_conf.stat.exists
+      failed_when: join_out.rc != 0 and 'already' not in join_out.stdout
+
+    - name: Mark kubelet started (systemctl restart kubelet)
+      ansible.builtin.service:
+        name: kubelet
+        state: started
+        enabled: yes
+
+- name: HTTP for LB testing
+  hosts: workers
+  become: yes
+  tasks:
+    - name: Install apache2
+      ansible.builtin.apt:
+        name: apache2
+        state: present
+        update_cache: no
+
+    - name: Ensure apache2 service running
+      ansible.builtin.service:
+        name: apache2
+        state: started
