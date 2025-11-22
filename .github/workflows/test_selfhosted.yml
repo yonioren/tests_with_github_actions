@@ -27,8 +27,8 @@ jobs:
           
       - name: init terraform
         run: terraform init
-        working-directory: Terraform
+        working-directory: Terraform/k8s
 
       - name: run terraform
         run: terraform apply -auto-approve
-        working-directory: Terraform
+        working-directory: Terraform/k8s
