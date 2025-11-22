@@ -19,8 +19,18 @@ jobs:
   test-runner:
     runs-on: self-hosted
     steps:
-      - name: Create a file
-        run: echo "It Works" > works
+      - name: checkout repo
+        uses: actions/checkout@v4
 
-      - name: Show pwd
-        run: pwd
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.14.0 ####### Specify your desired Terraform version
+          
+      - name: init terraform
+        run: terraform init
+        working-directory: Terraform
+
+      - name: run terraform
+        run: terraform apply -auto-apply
+        working-directory: Terraform
