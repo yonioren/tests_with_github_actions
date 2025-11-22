@@ -19,22 +19,11 @@ jobs:
   test-runner:
     runs-on: self-hosted
     steps:
-      - name: checkout repo
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 'lts/*'
-          cache: 'npm'
-
       - name: set up unzip
         run: sudo apt update && sudo apt install unzip -y
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.14.0 ####### Specify your desired Terraform version
+        
+      - name: checkout repo
+        uses: actions/checkout@v4
           
       - name: init terraform
         run: terraform init
