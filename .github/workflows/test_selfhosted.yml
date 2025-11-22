@@ -22,6 +22,15 @@ jobs:
       - name: checkout repo
         uses: actions/checkout@v4
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          cache: 'npm'
+
+      - name: set up unzip
+        run: sudo apt update && sudo apt install unzip -y
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
@@ -32,5 +41,5 @@ jobs:
         working-directory: Terraform
 
       - name: run terraform
-        run: terraform apply -auto-apply
+        run: terraform apply -auto-approve
         working-directory: Terraform
