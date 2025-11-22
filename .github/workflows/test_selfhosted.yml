@@ -17,7 +17,7 @@ on:
 jobs:
   # This workflow contains a single job called "build"
   test-runner:
-    runs-on: ip-10-0-1-41
+    runs-on: self-hosted
     steps:
       - name: Create a file
         run: echo "It Works" > works
