@@ -2,7 +2,7 @@ module "keypair" {
   source = "../modules/keypair"
 
   key_name = var.key_name
-  private_key = "${path.module}/${var.private_key}"
+  private_key = abspath("${path.cwd}/${var.private_key}")
 }
 
 module "network" {
