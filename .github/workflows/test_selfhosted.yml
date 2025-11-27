@@ -24,8 +24,8 @@ jobs:
   test-runner:
     runs-on: self-hosted
     steps:
-      - name: set up unzip
-        run: sudo apt update && sudo apt install unzip -y
+      - name: set up dependency packages
+        run: sudo apt update && sudo apt install unzip docker.io -y
         
       - name: checkout repo
         uses: actions/checkout@v4
