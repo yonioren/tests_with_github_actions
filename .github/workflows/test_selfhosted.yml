@@ -55,8 +55,8 @@ jobs:
 
       - name: Build and tag Docker image
         run: |
-          docker build -t last:v1 .
-          docker tag last:v1 yonioren/last:v1
+          sudo docker build -t last:v1 .
+          sudo docker tag last:v1 yonioren/last:v1
         working-directory: Python
           
       - name: init terraform
