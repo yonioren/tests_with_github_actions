@@ -26,6 +26,8 @@ jobs:
         
       - name: checkout repo
         uses: actions/checkout@v4
+        with:
+          clean: false
           
       - name: init terraform
         run: terraform init
