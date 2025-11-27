@@ -98,7 +98,7 @@ resource "terraform_data" "copy_key" {
     }
   }
   provisioner "file" {
-    source      = "${path.root}/../Ansible/k8s.yaml"
+    source      = "${path.root}/../../Ansible/k8s.yaml"
     destination = "/home/ubuntu/k8s.yaml"
     connection {
         type        = "ssh"
