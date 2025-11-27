@@ -7,6 +7,8 @@ on:
   # Triggers the workflow on push or pull request events but only for the "main" branch
   push:
     branches: [ "main" ]
+    paths-ignore:
+      -  .github/workflows/test_selfhosted.yml
   pull_request:
     branches: [ "main" ]
 
@@ -38,6 +40,7 @@ jobs:
         working-directory: Terraform/k8s
 
       - name: read variables from terraform
+        id: read_from_terraform
         working-directory: Terraform/k8s
         run: |
           echo "MASTER_IP=$(terraform output -raw master_public_ip)" >> $GITHUB_ENV
@@ -46,6 +49,8 @@ jobs:
       - name: run ansible
         working-directory: Ansible
         run: |
+          MASTER_IP=${{ steps.read_from_terraform.outputs.MASTER_IP }}
+          PRV_KEY_PATH=${{ steps.read_from_terraform.outputs.PRV_KEY_PATH }}
           ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i "${PRV_KEY_PATH}" "ubuntu@${MASTER_IP}" \
           "for ATTEMPT in {1..3}; do ansible all -m ping && break || false; done; exit $?"
           
