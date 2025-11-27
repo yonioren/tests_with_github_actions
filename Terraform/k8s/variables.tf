@@ -6,7 +6,7 @@ variable "private_subnet_cidrs" { type = list(string) }
 variable "instance_type_master" { default = "t3.medium" }
 variable "instance_type_worker" { default = "t3.medium" }
 
-variable "key_name" { default = "generated-key" }
+variable "key_name" { default = "k8s-key" }
 variable "private_key" { default = "k.pem" }
 variable "ubuntu_ami" {
   description = "Ubuntu Server 24.04 LTS AMI ID"
