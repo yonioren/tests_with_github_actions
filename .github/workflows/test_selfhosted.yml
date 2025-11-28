@@ -10,8 +10,8 @@ on:
     paths-ignore:
       - .github/workflows/test_selfhosted.yml
       - Helm/**
-  pull_request:
-    branches: [ "main" ]
+  #pull_request:
+   # branches: [ "main" ]
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
@@ -50,35 +50,9 @@ jobs:
         run: pytest
         working-directory: Python/source
 
-  Build_and_release:
-    runs-on: self-hosted
-    needs: [ Testing ]
-    steps:
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
-      - name: Build and tag Docker image
-        run: |
-          DOCKER_IMAGE_NAME=${{vars.DOCKER_IMAGE_NAME}}
-          VERSION=${{vars.VERSION}}
-          DOCKERHUB_REPO=${{ secrets.DOCKER_USERNAME}}
-          sudo docker build -t "${DOCKER_IMAGE_NAME}:${VERSION}" .
-          sudo docker tag "${DOCKER_IMAGE_NAME}:${VERSION}" "${DOCKERHUB_REPO}/${DOCKER_IMAGE_NAME}:${VERSION}"
-        working-directory: Python
-
-      - name: Push Docker image
-        run: |
-          DOCKER_IMAGE_NAME=${{vars.DOCKER_IMAGE_NAME}}
-          VERSION=${{vars.VERSION}}
-          DOCKERHUB_REPO=${{ secrets.DOCKER_USERNAME}}
-          sudo docker push "${DOCKERHUB_REPO}/${DOCKER_IMAGE_NAME}:${VERSION}"
-
   Deploy_k8s:
     runs-on: self-hosted
-    needs: [ Pre_reqs ]
+    needs: [ Testing ]
     steps:
       - name: init terraform
         run: terraform init
@@ -98,6 +72,7 @@ jobs:
         run: |
           echo "MASTER_IP=$(terraform output -raw master_public_ip)" >> $GITHUB_ENV
           echo "PRV_KEY_PATH=$(terraform output -raw private_key_path)" >> $GITHUB_ENV
+          echo "MASTER_PRV_IP=$(terraform output -raw master_private_ip)" >> $GITHUB_ENV
 
       - name: write ansible playbook to server
         working-directory: Ansible
@@ -117,3 +92,55 @@ jobs:
             ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i "${PRV_KEY_PATH}" "ubuntu@${MASTER_IP}" \
             "ansible-playbook /home/ubuntu/k8s.yaml"
           fi
+
+  Build_and_release:
+    runs-on: self-hosted
+    needs: [ Deploy_k8s ]
+    permissions:
+      packages: write
+    steps:
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          #password: ${{ secrets.DOCKER_PASSWORD }}
+          password: ${{ secrets.DOCKERHUB_PAT }}
+
+      - name: Build and tag Docker image
+        run: |
+          DOCKER_IMAGE_NAME=${{vars.DOCKER_IMAGE_NAME}}
+          VERSION=${{vars.VERSION}}
+          DOCKERHUB_REPO=${{ vars.DOCKERHUB_USERNAME }}
+          sudo docker build -t "${DOCKER_IMAGE_NAME}:${VERSION}" .
+          sudo docker tag "${DOCKER_IMAGE_NAME}:${VERSION}" "${DOCKERHUB_REPO}/${DOCKER_IMAGE_NAME}:${VERSION}"
+        working-directory: Python
+
+      - name: Push Docker image
+        run: |
+          DOCKER_IMAGE_NAME=${{vars.DOCKER_IMAGE_NAME}}
+          VERSION=${{vars.VERSION}}
+          DOCKERHUB_REPO=${{ vars.DOCKERHUB_USERNAME }}
+          sudo docker push "${DOCKERHUB_REPO}/${DOCKER_IMAGE_NAME}:${VERSION}"
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+
+      - name: Build helm
+        working-directory: Helm
+        run: |
+          export DOCKERHUB_REPO=${{ vars.DOCKERHUB_USERNAME }}
+          export DOCKER_IMAGE_NAME=${{vars.DOCKER_IMAGE_NAME}}
+          export VERSION=${{vars.VERSION}}
+          export CHART_VERSION=${{vars.CHART_VERSION}}
+          export NFS_SERVER=$MASTER_PRV_IP
+          envsubst < values.yaml.tpl > projectplanner/values.yaml
+          envsubst < Chart.yaml.tpl > projectplanner/Chart.yaml
+          helm lint projectplanner
+          helm package projectplanner --destination .
+
+      - name: Push helm to github
+        working-directory: Helm
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io --username ${{ github.actor }} --password-stdin
+          helm push projectplanner-${{vars.CHART_VERSION}}.tgz oci://ghcr.io/${{ github.repository }}
+
