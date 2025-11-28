@@ -132,7 +132,7 @@
       changed_when: false
 
 # Install kubectl only on masters (the user requested kubectl installed in all servers in master group)
-- name: Install kubectl on master nodes
+- name: Install kubectl and helm on master nodes
   hosts: master
   become: yes
   tasks:
@@ -145,6 +145,11 @@
     - name: Hold kubectl
       ansible.builtin.command: apt-mark hold kubectl
       changed_when: false
+
+    - name: Install Helm via helm-provided install script
+      shell: curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-4 | bash
+      args:
+        creates: /usr/local/bin/helm
 
 # Initialize the cluster on master if not present, apply Calico, create join token
 - name: Initialize Kubernetes on master (if not already initialized) and apply network
