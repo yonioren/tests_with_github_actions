@@ -15,7 +15,7 @@ variable "ubuntu_ami" {
 
 variable "service_port" {
   type = number
-  default = 80
+  default = 30666
 }
 
 variable "private_key_location_on_server" { default = "/home/ubuntu/k.pem" }
