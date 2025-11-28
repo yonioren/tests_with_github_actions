@@ -312,18 +312,3 @@
         name: kubelet
         state: started
         enabled: yes
-
-- name: HTTP for LB testing
-  hosts: workers
-  become: yes
-  tasks:
-    - name: Install apache2
-      ansible.builtin.apt:
-        name: apache2
-        state: present
-        update_cache: no
-
-    - name: Ensure apache2 service running
-      ansible.builtin.service:
-        name: apache2
-        state: started
