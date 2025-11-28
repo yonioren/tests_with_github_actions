@@ -102,7 +102,7 @@ jobs:
       - name: write ansible playbook to server
         working-directory: Ansible
         run: |
-          scp k8s.yaml -i "${PRV_KEY_PATH}" "ubuntu@${MASTER_IP}:"
+          scp -i "${PRV_KEY_PATH}" k8s.yaml "ubuntu@${MASTER_IP}:"
 
       - name: run ansible
         working-directory: Ansible
