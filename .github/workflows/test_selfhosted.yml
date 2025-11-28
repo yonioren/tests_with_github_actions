@@ -9,7 +9,7 @@ on:
     branches: [ "main" ]
     paths-ignore:
       - .github/workflows/test_selfhosted.yml
-      - K8S
+      - Helm/**
   pull_request:
     branches: [ "main" ]
 
