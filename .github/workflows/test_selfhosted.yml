@@ -53,6 +53,10 @@ jobs:
   Deploy_k8s:
     runs-on: self-hosted
     needs: [ Testing ]
+    outputs: 
+      MASTER_IP: ${{ steps.read_from_terraform.outputs.MASTER_IP }}
+      PRV_KEY_PATH: ${{ steps.read_from_terraform.outputs.PRV_KEY_PATH }}
+      MASTER_PRV_IP: ${{ steps.read_from_terraform.outputs.MASTER_PRV_IP }}
     steps:
       - name: init terraform
         run: terraform init
@@ -71,8 +75,11 @@ jobs:
         working-directory: Terraform/k8s
         run: |
           echo "MASTER_IP=$(terraform output -raw master_public_ip)" >> $GITHUB_ENV
+          echo "MASTER_IP=$MASTER_IP" >> $GITHUB_OUTPUT
           echo "PRV_KEY_PATH=$(terraform output -raw private_key_path)" >> $GITHUB_ENV
+          echo "PRV_KEY_PATH=$PRV_KEY_PATH" >> $GITHUB_OUTPUT
           echo "MASTER_PRV_IP=$(terraform output -raw master_private_ip)" >> $GITHUB_ENV
+          echo "MASTER_PRV_IP=$MASTER_PRV_IP" >> $GITHUB_OUTPUT
 
       - name: write ansible playbook to server
         working-directory: Ansible
@@ -132,7 +139,7 @@ jobs:
           export DOCKER_IMAGE_NAME=${{vars.DOCKER_IMAGE_NAME}}
           export VERSION=${{vars.VERSION}}
           export CHART_VERSION=${{vars.CHART_VERSION}}
-          export NFS_SERVER=$MASTER_PRV_IP
+          export NFS_SERVER=${{ needs.Deploy_k8s.outputs.MASTER_PRV_IP }}
           envsubst < values.yaml.tpl > projectplanner/values.yaml
           envsubst < Chart.yaml.tpl > projectplanner/Chart.yaml
           helm lint projectplanner
