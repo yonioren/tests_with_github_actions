@@ -99,6 +99,11 @@ jobs:
           echo "MASTER_IP=$(terraform output -raw master_public_ip)" >> $GITHUB_ENV
           echo "PRV_KEY_PATH=$(terraform output -raw private_key_path)" >> $GITHUB_ENV
 
+      - name: write ansible playbook to server
+        working-directory: Ansible
+        run: |
+          scp k8s.yaml -i "${PRV_KEY_PATH}" "ubuntu@${MASTER_IP}:"
+
       - name: run ansible
         working-directory: Ansible
         run: |
