@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-projectplanner
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-projectplanner
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-projectplanner
+    spec:
+      containers:
+      - name: app
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - containerPort: {{ .Values.service.port }}
+        volumeMounts:
+        - name: nfs-volume
+          mountPath: {{ .Values.nfs.mountPath }}
+        env:
+        - name: DB_DIR
+          value: {{ .Values.nfs.mountPath }}
+      volumes:
+      - name: nfs-volume
+        persistentVolumeClaim:
+          claimName: {{ .Release.Name }}-projectplanner-pvc
+
