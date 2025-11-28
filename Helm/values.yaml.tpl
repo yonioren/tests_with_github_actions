@@ -8,7 +8,7 @@ image:
 service:
   type: NodePort
   port: 8666
-  nodePort: 8666
+  nodePort: 30666
 
 nfs:
   server: ${NFS_SERVER}
