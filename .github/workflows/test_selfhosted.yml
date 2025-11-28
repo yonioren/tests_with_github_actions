@@ -80,6 +80,7 @@ jobs:
           echo "PRV_KEY_PATH=$PRV_KEY_PATH" >> $GITHUB_OUTPUT
           echo "MASTER_PRV_IP=$(terraform output -raw master_private_ip)" >> $GITHUB_ENV
           echo "MASTER_PRV_IP=$MASTER_PRV_IP" >> $GITHUB_OUTPUT
+          echo "URL=$(terraform output -raw alb_dns_name)" >> $GITHUB_OUTPUT
 
       - name: write ansible playbook to server
         working-directory: Ansible
@@ -150,4 +151,26 @@ jobs:
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io --username ${{ github.actor }} --password-stdin
           helm push projectplanner-${{vars.CHART_VERSION}}.tgz oci://ghcr.io/${{ github.repository }}
+
+      - name: share chart info
+        run: |
+          echo "CHART_URL=oci://ghcr.io/${{ github.repository }}/projectplanner:${{vars.CHART_VERSION}}" >> GITHUB_OUTPUT
+
+  Deploy_version:
+    runs-on: self-hosted
+    needs: [ Deploy_k8s, Build_and_release ]
+    steps:
+      - name: deploy
+        run: |
+          CHART_URL=${{ needs.Build_and_release.outputs.CHART_URL }}
+          MASTER_IP=${{ needs.Deploy_k8s.outputs.MASTER_IP }}
+          PRV_KEY_PATH=${{ needs.Deploy_k8s.outputs.PRV_KEY_PATH }}
+          ssh -i "${PRV_KEY_PATH} "ubuntu@${MASTER_IP}" "helm upgrade --install ${{vars.HELM_RELEASE_NAME}} ${CHART_URL}"
+
+  OUTPUTS:
+    runs-on: self-hosted
+    needs: [ Deploy_version, Deploy_k8s ]
+    steps:
+      - name: OUTPUT
+        run: echo "::notice title=Info Info::Surf to ${{needs.Deploy_k8s.outputs.URL}} to view page."
 
