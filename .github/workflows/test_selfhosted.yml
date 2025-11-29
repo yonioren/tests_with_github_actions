@@ -84,7 +84,7 @@ jobs:
           MASTER_PRV_IP=$(terraform output -raw master_private_ip)
           echo "MASTER_PRV_IP=$MASTER_PRV_IP" >> $GITHUB_ENV
           echo "MASTER_PRV_IP=$MASTER_PRV_IP" >> $GITHUB_OUTPUT
-          echo "URL=$(terraform output -raw alb_dns_name)" >> $GITHUB_OUTPUT
+          echo "URL=http://$(terraform output -raw alb_dns_name)" >> $GITHUB_OUTPUT
 
       - name: write ansible playbook to server
         working-directory: Ansible
@@ -171,6 +171,15 @@ jobs:
           MASTER_IP=${{ needs.Deploy_k8s.outputs.MASTER_IP }}
           PRV_KEY_PATH=${{ needs.Deploy_k8s.outputs.PRV_KEY_PATH }}
           ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i "${PRV_KEY_PATH}" "ubuntu@${MASTER_IP}" "helm upgrade --install ${{vars.HELM_RELEASE_NAME}} ${CHART_URL}"
+
+  check_reachability:
+    runs-on: self-hosted
+    needs: [ Deploy_version, Deploy_k8s ]
+    steps:
+      - name: check that URL is reachable
+        run: |
+          URL="${{ needs.Deploy_k8s.outputs.URL }}"  
+          curl -s -f -I --max-time 10 --retry 5 --retry-delay 30 "$URL"
 
   OUTPUTS:
     runs-on: self-hosted
