@@ -57,6 +57,7 @@ jobs:
       MASTER_IP: ${{ steps.read_from_terraform.outputs.MASTER_IP }}
       PRV_KEY_PATH: ${{ steps.read_from_terraform.outputs.PRV_KEY_PATH }}
       MASTER_PRV_IP: ${{ steps.read_from_terraform.outputs.MASTER_PRV_IP }}
+      URL: ${{ steps.read_from_terraform.outputs.URL }}
     steps:
       - name: init terraform
         run: terraform init
@@ -109,11 +110,12 @@ jobs:
     needs: [ Deploy_k8s ]
     permissions:
       packages: write
+    outputs: 
+      CHART_URL: ${{ steps.chart_url.outputs.CHART_URL }}
     steps:
       - name: Log in to Docker Hub (root)
         run: |
           echo "${{ secrets.DOCKERHUB_PAT }}" | sudo docker login -u "${{ vars.DOCKERHUB_USERNAME }}" --password-stdin
-
 
       - name: Build and tag Docker image
         run: |
@@ -154,6 +156,7 @@ jobs:
           helm push projectplanner-${{vars.CHART_VERSION}}.tgz oci://ghcr.io/${{ github.repository }}
 
       - name: share chart info
+        id: chart_url
         run: |
           echo "CHART_URL=oci://ghcr.io/${{ github.repository }}/projectplanner:${{vars.CHART_VERSION}}" >> GITHUB_OUTPUT
 
