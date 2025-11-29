@@ -21,7 +21,7 @@ data "http" "my_ip" {
 module "alb_sg" {
   source    = "../modules/security_group"
 
-  name        = "k8s-alb-sg"
+  name        = "projectplanner-alb-sg"
   vpc_id      = module.network.vpc_id
   ingress_rules_by_cidr = [
     { from_port = 80, to_port = 80, protocol = "tcp", cidr_blocks = ["0.0.0.0/0"] }
@@ -31,7 +31,7 @@ module "alb_sg" {
 module "master_sg" {
   source    = "../modules/security_group"
 
-  name   = "k8s-master-sg"
+  name   = "projectplanner-k8s-master-sg"
   vpc_id = module.network.vpc_id
   ingress_rules_by_cidr = [
     { from_port = 22, to_port = 22, protocol = "tcp", cidr_blocks = ["${chomp(data.http.my_ip.response_body)}/32"] }
@@ -41,7 +41,7 @@ module "master_sg" {
 module "workers_sg" {
   source    = "../modules/security_group"
 
-  name   = "k8s-workers-sg"
+  name   = "projectplanner-k8s-workers-sg"
   vpc_id = module.network.vpc_id
   ingress_rules_by_sg = [
     { from_port = var.service_port, to_port = var.service_port, protocol = "tcp", source_security_group_id=module.alb_sg.security_group_id }
@@ -51,7 +51,7 @@ module "workers_sg" {
 module k8s_cluster_sg {
   source = "../modules/security_group"
 
-  name = "k8s-inter-cluster-sg"
+  name = "projectplanner-k8s-inter-cluster-sg"
   vpc_id = module.network.vpc_id
   ingress_rules_by_self = [
     { from_port = 0, to_port = 0, protocol = "-1"}
@@ -115,7 +115,7 @@ module "workers" {
 module "alb" {
   source    = "../modules/alb"
 
-  name              = "k8s-check-alb"
+  name              = "projectplanner"
   vpc_id            = module.network.vpc_id
   public_subnet_ids = module.network.public_subnet_ids
   instance_ids      = module.workers[*].instance_id
