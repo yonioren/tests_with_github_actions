@@ -159,7 +159,7 @@ jobs:
         id: chart_url
         run: |
           CHART_URL="oci://ghcr.io/${{ github.repository }}/projectplanner:${{vars.CHART_VERSION}}"
-          echo "CHART_URL=$CHART_URL" >> GITHUB_OUTPUT
+          echo "CHART_URL=$CHART_URL" >> $GITHUB_OUTPUT
 
   Deploy_version:
     runs-on: self-hosted
