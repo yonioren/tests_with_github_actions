@@ -158,7 +158,8 @@ jobs:
       - name: share chart info
         id: chart_url
         run: |
-          echo "CHART_URL=oci://ghcr.io/${{ github.repository }}/projectplanner:${{vars.CHART_VERSION}}" >> GITHUB_OUTPUT
+          CHART_URL="oci://ghcr.io/${{ github.repository }}/projectplanner:${{vars.CHART_VERSION}}"
+          echo "CHART_URL=$CHART_URL" >> GITHUB_OUTPUT
 
   Deploy_version:
     runs-on: self-hosted
@@ -166,7 +167,7 @@ jobs:
     steps:
       - name: deploy
         run: |
-          CHART_URL=${{ needs.Build_and_release.outputs.CHART_URL }}
+          CHART_URL="${{ needs.Build_and_release.outputs.CHART_URL }}"
           MASTER_IP=${{ needs.Deploy_k8s.outputs.MASTER_IP }}
           PRV_KEY_PATH=${{ needs.Deploy_k8s.outputs.PRV_KEY_PATH }}
           ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i "${PRV_KEY_PATH}" "ubuntu@${MASTER_IP}" "helm upgrade --install ${{vars.HELM_RELEASE_NAME}} ${CHART_URL}"
