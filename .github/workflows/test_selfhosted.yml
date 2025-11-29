@@ -169,7 +169,7 @@ jobs:
           CHART_URL=${{ needs.Build_and_release.outputs.CHART_URL }}
           MASTER_IP=${{ needs.Deploy_k8s.outputs.MASTER_IP }}
           PRV_KEY_PATH=${{ needs.Deploy_k8s.outputs.PRV_KEY_PATH }}
-          ssh -i "${PRV_KEY_PATH}" "ubuntu@${MASTER_IP}" "helm upgrade --install ${{vars.HELM_RELEASE_NAME}} ${CHART_URL}"
+          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i "${PRV_KEY_PATH}" "ubuntu@${MASTER_IP}" "helm upgrade --install ${{vars.HELM_RELEASE_NAME}} ${CHART_URL}"
 
   OUTPUTS:
     runs-on: self-hosted
