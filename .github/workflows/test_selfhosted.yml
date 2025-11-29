@@ -182,7 +182,7 @@ jobs:
 
   OUTPUTS:
     runs-on: self-hosted
-    needs: [ Deploy_version, Deploy_k8s ]
+    needs: [ check_reachability, Deploy_k8s ]
     steps:
       - name: OUTPUT
         run: echo "::notice title=Info Info::Surf to ${{needs.Deploy_k8s.outputs.URL}} to view page."
