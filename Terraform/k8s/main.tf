@@ -97,16 +97,6 @@ resource "terraform_data" "copy_key" {
         host        = module.master.public_ip
     }
   }
-  provisioner "file" {
-    source      = "${path.root}/../../Ansible/k8s.yaml"
-    destination = "/home/ubuntu/k8s.yaml"
-    connection {
-        type        = "ssh"
-        user        = "ubuntu"
-        private_key = file(module.keypair.private_key_path)
-        host        = module.master.public_ip
-    }
-  }
 }
 
 module "workers" {
