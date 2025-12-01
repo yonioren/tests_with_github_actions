@@ -91,7 +91,8 @@ jobs:
           MASTER_PRV_IP=$(terraform output -raw -state="${TFSTATE_PATH}/${TFSTATE_FILE}" master_private_ip)
           echo "MASTER_PRV_IP=$MASTER_PRV_IP" >> $GITHUB_ENV
           echo "MASTER_PRV_IP=$MASTER_PRV_IP" >> $GITHUB_OUTPUT
-          echo "URL=http://$(terraform output -raw -state=\"${TFSTATE_PATH}/${TFSTATE_FILE}\" alb_dns_name)" >> $GITHUB_OUTPUT
+          URL=$(terraform output -raw -state="${TFSTATE_PATH}/${TFSTATE_FILE}" alb_dns_name)
+          echo "URL=http://$URL" >> $GITHUB_OUTPUT
 
       - name: write ansible playbook to server
         working-directory: Ansible
