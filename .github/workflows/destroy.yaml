@@ -21,7 +21,9 @@ jobs:
 
       - name: Terraform Init
         run: terraform init -backend-config="path=${TFSTATE_PATH}/${TFSTATE_FILE}"
+        working-directory: Terraform/k8s
 
       - name: Terraform Destroy
         run: terraform destroy -auto-approve -state="${TFSTATE_PATH}/${TFSTATE_FILE}"
+        working-directory: Terraform/k8s
       
