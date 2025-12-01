@@ -1,0 +1,27 @@
+name: Destroy ProjectPlanner deployment
+on:
+  workflow_dispatch:
+
+jobs:
+  destroy:
+    env:
+      TFSTATE_PATH: /tfstate
+      TFSTATE_FILE: projectplanner.tfstate
+    runs-on: self-hosted
+    steps:
+      - name: Check if environment was deployed
+        run: |
+          if [ ! -f "${TFSTATE_PATH}/${TFSTATE_FILE}" ]
+          then
+            echo "The environment was not deployed. Aborting
+            exit 1
+          fi
+    
+      - uses: actions/checkout@v4
+
+      - name: Terraform Init
+        run: terraform init -backend-config="path=${TFSTATE_PATH}/${TFSTATE_FILE}"
+
+      - name: Terraform Destroy
+        run: terraform destroy -auto-approve -state="${TFSTATE_PATH}/${TFSTATE_FILE}"
+      
