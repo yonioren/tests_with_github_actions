@@ -52,7 +52,7 @@ jobs:
   Deploy_k8s:
     env:
       TFSTATE_PATH: /tfstate
-      TFSTATE_FILE: state
+      TFSTATE_FILE: projectplanner.tfstate
     runs-on: self-hosted
     needs: [ Testing ]
     outputs: 
@@ -64,7 +64,7 @@ jobs:
       - name: Ensure state dir exists
         run: |
           sudo mkdir -p "${TFSTATE_PATH}"
-          chmod 777 "${TFSTATE_PATH}"
+          sudo chmod 777 "${TFSTATE_PATH}"
         
       - name: init terraform
         run: terraform init -backend-config="path=${TFSTATE_PATH}/${TFSTATE_FILE}"
