@@ -1,6 +1,6 @@
 # This is a basic workflow to help you get started with Actions
 
-name: CI
+name: ProjectPlanner-CI
 
 # Controls when the workflow will run
 on:
@@ -8,7 +8,7 @@ on:
   push:
     branches: [ "main" ]
     paths-ignore:
-      - .github/workflows/test_selfhosted.yml
+      - .github/workflows/**
   #pull_request:
    # branches: [ "main" ]
 
@@ -50,6 +50,9 @@ jobs:
         working-directory: Python/source
 
   Deploy_k8s:
+    env:
+      TFSTATE_PATH: /tfstate
+      TFSTATE_FILE: state
     runs-on: self-hosted
     needs: [ Testing ]
     outputs: 
@@ -58,8 +61,13 @@ jobs:
       MASTER_PRV_IP: ${{ steps.read_from_terraform.outputs.MASTER_PRV_IP }}
       URL: ${{ steps.read_from_terraform.outputs.URL }}
     steps:
+      - name: Ensure state dir exists
+        run: |
+          sudo mkdir -p "${TFSTATE_PATH}"
+          chmod 777 "${TFSTATE_PATH}"
+        
       - name: init terraform
-        run: terraform init
+        run: terraform init -backend-config="path=${TFSTATE_PATH}/${TFSTATE_FILE}"
         working-directory: Terraform/k8s
 
       - name: run terraform
@@ -67,23 +75,23 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
-        run: terraform apply -auto-approve
+        run: terraform apply -auto-approve -state="${TFSTATE_PATH}/${TFSTATE_FILE}"
         working-directory: Terraform/k8s
 
       - name: read variables from terraform
         id: read_from_terraform
         working-directory: Terraform/k8s
         run: |
-          MASTER_IP=$(terraform output -raw master_public_ip)
+          MASTER_IP=$(terraform output -raw master_public_ip -state="${TFSTATE_PATH}/${TFSTATE_FILE}")
           echo "MASTER_IP=$MASTER_IP" >> $GITHUB_ENV
           echo "MASTER_IP=$MASTER_IP" >> $GITHUB_OUTPUT
-          PRV_KEY_PATH=$(terraform output -raw private_key_path)
+          PRV_KEY_PATH=$(terraform output -raw private_key_path -state="${TFSTATE_PATH}/${TFSTATE_FILE}")
           echo "PRV_KEY_PATH=$PRV_KEY_PATH" >> $GITHUB_ENV
           echo "PRV_KEY_PATH=$PRV_KEY_PATH" >> $GITHUB_OUTPUT
-          MASTER_PRV_IP=$(terraform output -raw master_private_ip)
+          MASTER_PRV_IP=$(terraform output -raw master_private_ip -state="${TFSTATE_PATH}/${TFSTATE_FILE}")
           echo "MASTER_PRV_IP=$MASTER_PRV_IP" >> $GITHUB_ENV
           echo "MASTER_PRV_IP=$MASTER_PRV_IP" >> $GITHUB_OUTPUT
-          echo "URL=http://$(terraform output -raw alb_dns_name)" >> $GITHUB_OUTPUT
+          echo "URL=http://$(terraform output -raw alb_dns_name -state=${TFSTATE_PATH}/${TFSTATE_FILE})" >> $GITHUB_OUTPUT
 
       - name: write ansible playbook to server
         working-directory: Ansible
@@ -185,5 +193,5 @@ jobs:
     needs: [ check_reachability, Deploy_k8s ]
     steps:
       - name: OUTPUT
-        run: echo "::notice title=Info Info::Surf to ${{needs.Deploy_k8s.outputs.URL}} to view page."
+        run: echo "::notice title=Surf here to view the page::${{needs.Deploy_k8s.outputs.URL}}"
 
