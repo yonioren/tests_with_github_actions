@@ -11,11 +11,9 @@ jobs:
     steps:
       - name: Check if environment was deployed
         run: |
-          if [ -f "${TFSTATE_PATH}/${TFSTATE_FILE}" ]
+          if [ ! -f "${TFSTATE_PATH}/${TFSTATE_FILE}" ]
           then
-            true
-          else
-            echo "The environment was not deployed. Aborting
+            echo "The environment was not deployed. Aborting"
             exit 1
           fi
     
